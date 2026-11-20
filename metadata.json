@@ -1,0 +1,6 @@
+{
+  "name": "ZharCard",
+  "description": "Break. Create. Collect. Battle. A modern Sky Blue Fantasy digital trading card game set in ZharWorld.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

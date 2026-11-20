@@ -1,0 +1,609 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Health check document for client SDK startup validation
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // Global hardened primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'fawazoklama@gmail.com' && request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isBoundedStringList(arr, maxLen) {
+      return arr is list && arr.size() <= maxLen && (arr.size() == 0 || arr[0] is string);
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'username', 'level', 'exp', 'coins', 'role', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'uid', 'username', 'avatar', 'bio', 'level', 'exp', 'coins',
+          'totalCards', 'totalPacksOpened', 'totalBattles', 'battleWins',
+          'winRate', 'role', 'unlockedAchievements', 'completedMissionIds',
+          'favoriteCardIds', 'joinDate', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.username is string && data.username.size() >= 2 && data.username.size() <= 32
+        && (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 500))
+        && (!('bio' in data) || (data.bio is string && data.bio.size() <= 300))
+        && (!('joinDate' in data) || (data.joinDate is string && data.joinDate.size() <= 64))
+        && data.level is int && data.level >= 1 && data.level <= 999
+        && data.exp is int && data.exp >= 0 && data.exp <= 10000000
+        && data.coins is int && data.coins >= 0 && data.coins <= 100000000
+        && (!('totalCards' in data) || (data.totalCards is int && data.totalCards >= 0 && data.totalCards <= 100000))
+        && (!('totalPacksOpened' in data) || (data.totalPacksOpened is int && data.totalPacksOpened >= 0 && data.totalPacksOpened <= 100000))
+        && (!('totalBattles' in data) || (data.totalBattles is int && data.totalBattles >= 0 && data.totalBattles <= 100000))
+        && (!('battleWins' in data) || (data.battleWins is int && data.battleWins >= 0 && data.battleWins <= 100000))
+        && (!('winRate' in data) || (data.winRate is number && data.winRate >= 0 && data.winRate <= 100))
+        && data.role in ['user', 'admin']
+        && (!('unlockedAchievements' in data) || isBoundedStringList(data.unlockedAchievements, 50))
+        && (!('completedMissionIds' in data) || isBoundedStringList(data.completedMissionIds, 50))
+        && (!('favoriteCardIds' in data) || isBoundedStringList(data.favoriteCardIds, 24))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data) {
+      return data.keys().hasAll(['uid', 'email', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'language', 'theme', 'notificationsEnabled', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() <= 200
+        && (!('language' in data) || data.language in ['id', 'en'])
+        && (!('theme' in data) || data.theme in ['light', 'dark'])
+        && (!('notificationsEnabled' in data) || data.notificationsEnabled is bool)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCard(data) {
+      return data.keys().hasAll([
+          'id', 'name', 'description', 'rarity', 'element', 'hp', 'attack', 'defense',
+          'skillName', 'skillDescription', 'isOfficial', 'moderationStatus', 'creatorId',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'name', 'nameEn', 'description', 'descriptionEn', 'imageUrl', 'rarity',
+          'element', 'hp', 'attack', 'defense', 'skillName', 'skillDescription',
+          'template', 'frameStyle', 'bgStyle', 'borderStyle', 'effectStyle', 'accentColor',
+          'isHolographic', 'isOfficial', 'moderationStatus', 'creatorId', 'creatorName',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 60
+        && (!('nameEn' in data) || (data.nameEn is string && data.nameEn.size() <= 60))
+        && data.description is string && data.description.size() >= 4 && data.description.size() <= 400
+        && (!('descriptionEn' in data) || (data.descriptionEn is string && data.descriptionEn.size() <= 400))
+        && (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 1000))
+        && data.rarity in ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY', 'MYTHIC', 'SECRET']
+        && data.element in ['Fire', 'Water', 'Wind', 'Earth', 'Light', 'Dark', 'Ice', 'Thunder']
+        && data.hp is int && data.hp >= 20 && data.hp <= 5000
+        && data.attack is int && data.attack >= 5 && data.attack <= 2000
+        && data.defense is int && data.defense >= 0 && data.defense <= 2000
+        && data.skillName is string && data.skillName.size() >= 2 && data.skillName.size() <= 60
+        && data.skillDescription is string && data.skillDescription.size() >= 4 && data.skillDescription.size() <= 240
+        && (!('template' in data) || (data.template is string && data.template.size() <= 40))
+        && (!('frameStyle' in data) || (data.frameStyle is string && data.frameStyle.size() <= 40))
+        && (!('bgStyle' in data) || (data.bgStyle is string && data.bgStyle.size() <= 40))
+        && (!('borderStyle' in data) || (data.borderStyle is string && data.borderStyle.size() <= 40))
+        && (!('effectStyle' in data) || (data.effectStyle is string && data.effectStyle.size() <= 40))
+        && (!('accentColor' in data) || (data.accentColor is string && data.accentColor.size() <= 24))
+        && (!('isHolographic' in data) || data.isHolographic is bool)
+        && data.isOfficial is bool
+        && data.moderationStatus in ['approved', 'pending', 'rejected']
+        && isValidId(data.creatorId)
+        && (!('creatorName' in data) || (data.creatorName is string && data.creatorName.size() <= 40))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCardInventory(data) {
+      return data.keys().hasAll(['userId', 'cardId', 'quantity', 'isFavorite', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'cardId', 'quantity', 'isFavorite', 'obtainedFrom', 'createdAt', 'updatedAt'])
+        && isValidId(data.userId)
+        && isValidId(data.cardId)
+        && data.quantity is int && data.quantity >= 0 && data.quantity <= 9999
+        && data.isFavorite is bool
+        && (!('obtainedFrom' in data) || (data.obtainedFrom is string && data.obtainedFrom.size() <= 64))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPack(data) {
+      return data.keys().hasAll(['id', 'name', 'price', 'cardCount', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'name', 'nameEn', 'description', 'descriptionEn', 'price', 'cardCount', 'guaranteedMinRarity', 'dropRates', 'artworkUrl', 'updatedAt'])
+        && isValidId(data.id)
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 60
+        && (!('nameEn' in data) || (data.nameEn is string && data.nameEn.size() <= 60))
+        && (!('description' in data) || (data.description is string && data.description.size() <= 300))
+        && (!('descriptionEn' in data) || (data.descriptionEn is string && data.descriptionEn.size() <= 300))
+        && data.price is int && data.price >= 0 && data.price <= 1000000
+        && data.cardCount is int && data.cardCount >= 1 && data.cardCount <= 20
+        && (!('guaranteedMinRarity' in data) || (data.guaranteedMinRarity is string && data.guaranteedMinRarity.size() <= 24))
+        && (!('dropRates' in data) || data.dropRates is map)
+        && (!('artworkUrl' in data) || (data.artworkUrl is string && data.artworkUrl.size() <= 500))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPackOpening(data) {
+      return data.keys().hasAll(['userId', 'packId', 'cardIds', 'highestRarity', 'cost', 'serverSignature', 'createdAt'])
+        && data.keys().hasOnly(['userId', 'packId', 'cardIds', 'highestRarity', 'cost', 'serverSignature', 'createdAt'])
+        && isValidId(data.userId)
+        && isValidId(data.packId)
+        && isBoundedStringList(data.cardIds, 20) && data.cardIds.size() >= 1
+        && data.highestRarity in ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY', 'MYTHIC', 'SECRET']
+        && data.cost is int && data.cost >= 0 && data.cost <= 1000000
+        && data.serverSignature is string && data.serverSignature.size() >= 16 && data.serverSignature.size() <= 256
+        && data.createdAt is timestamp;
+    }
+
+    function isValidBattle(data) {
+      return data.keys().hasAll(['playerId', 'mode', 'status', 'winner', 'playerCardId', 'enemyCardId', 'playerHp', 'enemyHp', 'turnCount', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['playerId', 'mode', 'status', 'winner', 'playerCardId', 'enemyCardId', 'playerHp', 'enemyHp', 'turnCount', 'rewardCoins', 'rewardExp', 'createdAt', 'updatedAt'])
+        && isValidId(data.playerId)
+        && data.mode in ['practice', 'casual', 'ranked']
+        && data.status in ['active', 'finished']
+        && data.winner in ['none', 'player', 'opponent']
+        && isValidId(data.playerCardId)
+        && isValidId(data.enemyCardId)
+        && data.playerHp is int && data.playerHp >= 0 && data.playerHp <= 10000
+        && data.enemyHp is int && data.enemyHp >= 0 && data.enemyHp <= 10000
+        && data.turnCount is int && data.turnCount >= 0 && data.turnCount <= 200
+        && (!('rewardCoins' in data) || (data.rewardCoins is int && data.rewardCoins >= 0 && data.rewardCoins <= 50000))
+        && (!('rewardExp' in data) || (data.rewardExp is int && data.rewardExp >= 0 && data.rewardExp <= 50000))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBattleHistory(data) {
+      return data.keys().hasAll(['userId', 'mode', 'result', 'playerCardId', 'enemyCardId', 'rewardCoins', 'rewardExp', 'createdAt'])
+        && data.keys().hasOnly(['userId', 'mode', 'result', 'playerCardId', 'enemyCardId', 'turns', 'rewardCoins', 'rewardExp', 'createdAt'])
+        && isValidId(data.userId)
+        && data.mode in ['practice', 'casual', 'ranked']
+        && data.result in ['victory', 'defeat']
+        && isValidId(data.playerCardId)
+        && isValidId(data.enemyCardId)
+        && (!('turns' in data) || (data.turns is int && data.turns >= 1 && data.turns <= 200))
+        && data.rewardCoins is int && data.rewardCoins >= 0 && data.rewardCoins <= 50000
+        && data.rewardExp is int && data.rewardExp >= 0 && data.rewardExp <= 50000
+        && data.createdAt is timestamp;
+    }
+
+    function isValidTrade(data) {
+      return data.keys().hasAll(['sellerId', 'sellerName', 'offeredCardId', 'priceCoins', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['sellerId', 'sellerName', 'buyerId', 'buyerName', 'offeredCardId', 'requestedCardId', 'priceCoins', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.sellerId)
+        && data.sellerName is string && data.sellerName.size() >= 2 && data.sellerName.size() <= 40
+        && (!('buyerId' in data) || data.buyerId == '' || isValidId(data.buyerId))
+        && (!('buyerName' in data) || (data.buyerName is string && data.buyerName.size() <= 40))
+        && isValidId(data.offeredCardId)
+        && (!('requestedCardId' in data) || data.requestedCardId == '' || isValidId(data.requestedCardId))
+        && data.priceCoins is int && data.priceCoins >= 10 && data.priceCoins <= 1000000
+        && data.status in ['open', 'offered', 'completed', 'cancelled', 'rejected']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAchievement(data) {
+      return data.keys().hasAll(['id', 'title', 'rewardCoins', 'rewardExp', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'title', 'titleEn', 'description', 'descriptionEn', 'rewardCoins', 'rewardExp', 'updatedAt'])
+        && isValidId(data.id)
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 80
+        && (!('titleEn' in data) || (data.titleEn is string && data.titleEn.size() <= 80))
+        && (!('description' in data) || (data.description is string && data.description.size() <= 240))
+        && (!('descriptionEn' in data) || (data.descriptionEn is string && data.descriptionEn.size() <= 240))
+        && data.rewardCoins is int && data.rewardCoins >= 0 && data.rewardCoins <= 100000
+        && data.rewardExp is int && data.rewardExp >= 0 && data.rewardExp <= 100000
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMission(data) {
+      return data.keys().hasAll(['id', 'title', 'targetCount', 'rewardCoins', 'rewardExp', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'title', 'titleEn', 'targetCount', 'rewardCoins', 'rewardExp', 'updatedAt'])
+        && isValidId(data.id)
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 100
+        && (!('titleEn' in data) || (data.titleEn is string && data.titleEn.size() <= 100))
+        && data.targetCount is int && data.targetCount >= 1 && data.targetCount <= 1000
+        && data.rewardCoins is int && data.rewardCoins >= 0 && data.rewardCoins <= 100000
+        && data.rewardExp is int && data.rewardExp >= 0 && data.rewardExp <= 100000
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLeaderboardEntry(data) {
+      return data.keys().hasAll(['userId', 'username', 'level', 'totalCards', 'battleWins', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'username', 'avatar', 'level', 'totalCards', 'battleWins', 'legendaryCount', 'mythicCount', 'updatedAt'])
+        && isValidId(data.userId)
+        && data.username is string && data.username.size() >= 2 && data.username.size() <= 32
+        && (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 500))
+        && data.level is int && data.level >= 1 && data.level <= 999
+        && data.totalCards is int && data.totalCards >= 0 && data.totalCards <= 100000
+        && data.battleWins is int && data.battleWins >= 0 && data.battleWins <= 100000
+        && (!('legendaryCount' in data) || (data.legendaryCount is int && data.legendaryCount >= 0 && data.legendaryCount <= 100000))
+        && (!('mythicCount' in data) || (data.mythicCount is int && data.mythicCount >= 0 && data.mythicCount <= 100000))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['userId', 'type', 'amount', 'referenceId', 'createdAt'])
+        && data.keys().hasOnly(['userId', 'type', 'amount', 'referenceId', 'createdAt'])
+        && isValidId(data.userId)
+        && data.type in ['pack_open', 'battle_reward', 'mission_reward', 'trade_buy', 'trade_sell', 'starter_bonus']
+        && data.amount is int && data.amount >= -1000000 && data.amount <= 1000000
+        && isValidId(data.referenceId)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAnnouncement(data) {
+      return data.keys().hasAll(['title', 'body', 'authorId', 'createdAt'])
+        && data.keys().hasOnly(['title', 'body', 'authorId', 'createdAt'])
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 100
+        && data.body is string && data.body.size() >= 4 && data.body.size() <= 500
+        && isValidId(data.authorId)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidReport(data) {
+      return data.keys().hasAll(['reporterId', 'targetCardId', 'reason', 'status', 'createdAt'])
+        && data.keys().hasOnly(['reporterId', 'targetCardId', 'reason', 'status', 'createdAt'])
+        && isValidId(data.reporterId)
+        && isValidId(data.targetCardId)
+        && data.reason is string && data.reason.size() >= 4 && data.reason.size() <= 300
+        && data.status in ['open', 'resolved']
+        && data.createdAt is timestamp;
+    }
+
+    // Admins Registry
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list, create, update, delete: if isAdmin();
+    }
+
+    // Users Public Profile
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && (incoming().role == 'user' || isAdmin())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'username', 'avatar', 'bio', 'level', 'exp', 'coins',
+              'totalCards', 'totalPacksOpened', 'totalBattles', 'battleWins',
+              'winRate', 'unlockedAchievements', 'completedMissionIds',
+              'favoriteCardIds', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+
+      // Isolated PII & Settings
+      match /private/{docId} {
+        allow get: if isValidId(userId) && isValidId(docId) && (isOwner(userId) || isAdmin());
+        allow list: if isOwner(userId) || isAdmin();
+        allow create: if isValidId(userId) && isValidId(docId)
+          && isOwner(userId)
+          && isValidUserPrivateInfo(incoming())
+          && incoming().uid == request.auth.uid
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(docId)
+          && isOwner(userId)
+          && isValidUserPrivateInfo(incoming())
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'language', 'theme', 'notificationsEnabled', 'updatedAt']);
+        allow delete: if isValidId(userId) && isValidId(docId) && isAdmin();
+      }
+    }
+
+    // Cards Catalog (Official + Custom)
+    match /cards/{cardId} {
+      allow get: if isValidId(cardId) && (
+        resource.data.moderationStatus == 'approved' ||
+        (isSignedIn() && resource.data.creatorId == request.auth.uid) ||
+        isAdmin()
+      );
+      allow list: if resource.data.moderationStatus == 'approved'
+        || (isSignedIn() && resource.data.creatorId == request.auth.uid)
+        || isAdmin();
+      allow create: if isValidId(cardId)
+        && isVerifiedUser()
+        && isValidCard(incoming())
+        && incoming().id == cardId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            incoming().creatorId == request.auth.uid
+            && incoming().isOfficial == false
+            && incoming().moderationStatus == 'pending'
+          )
+        );
+      allow update: if isValidId(cardId)
+        && isSignedIn()
+        && isValidCard(incoming())
+        && incoming().id == existing().id
+        && incoming().creatorId == existing().creatorId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().creatorId == request.auth.uid
+            && existing().isOfficial == false
+            && incoming().isOfficial == false
+            && incoming().moderationStatus == existing().moderationStatus
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'name', 'nameEn', 'description', 'descriptionEn', 'imageUrl',
+              'rarity', 'element', 'hp', 'attack', 'defense', 'skillName',
+              'skillDescription', 'template', 'frameStyle', 'bgStyle',
+              'borderStyle', 'effectStyle', 'accentColor', 'isHolographic', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(cardId) && (
+        isAdmin() ||
+        (isSignedIn() && existing().creatorId == request.auth.uid && existing().isOfficial == false)
+      );
+    }
+
+    // Card Inventory
+    match /card_inventory/{inventoryId} {
+      allow get: if isValidId(inventoryId) && isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(inventoryId)
+        && isVerifiedUser()
+        && isValidCardInventory(incoming())
+        && incoming().userId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(inventoryId)
+        && isSignedIn()
+        && isValidCardInventory(incoming())
+        && incoming().userId == existing().userId
+        && incoming().cardId == existing().cardId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().userId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['quantity', 'isFavorite', 'obtainedFrom', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(inventoryId) && isAdmin();
+    }
+
+    // Packs Catalog
+    match /packs/{packId} {
+      allow get: if isValidId(packId);
+      allow list: if true;
+      allow create, update: if isValidId(packId) && isAdmin() && isValidPack(incoming()) && incoming().updatedAt == request.time;
+      allow delete: if isValidId(packId) && isAdmin();
+    }
+
+    // Pack Openings
+    match /pack_openings/{openingId} {
+      allow get: if isValidId(openingId) && isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(openingId)
+        && isVerifiedUser()
+        && isValidPackOpening(incoming())
+        && incoming().userId == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update, delete: if isValidId(openingId) && isAdmin();
+    }
+
+    // Battles
+    match /battles/{battleId} {
+      allow get: if isValidId(battleId) && isSignedIn() && (resource.data.playerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.playerId == request.auth.uid || isAdmin());
+      allow create: if isValidId(battleId)
+        && isVerifiedUser()
+        && isValidBattle(incoming())
+        && incoming().playerId == request.auth.uid
+        && incoming().status == 'active'
+        && incoming().winner == 'none'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(battleId)
+        && isSignedIn()
+        && isValidBattle(incoming())
+        && incoming().playerId == existing().playerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().playerId == request.auth.uid
+            && existing().status == 'active'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'winner', 'playerHp', 'enemyHp', 'turnCount', 'rewardCoins', 'rewardExp', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(battleId) && isAdmin();
+    }
+
+    // Battle History
+    match /battle_history/{historyId} {
+      allow get: if isValidId(historyId) && isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(historyId)
+        && isVerifiedUser()
+        && isValidBattleHistory(incoming())
+        && incoming().userId == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update, delete: if isValidId(historyId) && isAdmin();
+    }
+
+    // Marketplace & Trades
+    match /trades/{tradeId} {
+      allow get: if isValidId(tradeId) && isSignedIn() && (
+        resource.data.status in ['open', 'offered'] ||
+        resource.data.sellerId == request.auth.uid ||
+        resource.data.buyerId == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.status in ['open', 'offered'] ||
+        resource.data.sellerId == request.auth.uid ||
+        resource.data.buyerId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isValidId(tradeId)
+        && isVerifiedUser()
+        && isValidTrade(incoming())
+        && incoming().sellerId == request.auth.uid
+        && incoming().status == 'open'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(tradeId)
+        && isVerifiedUser()
+        && isValidTrade(incoming())
+        && incoming().sellerId == existing().sellerId
+        && incoming().offeredCardId == existing().offeredCardId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().status in ['open', 'offered'] && (
+              (
+                existing().sellerId != request.auth.uid
+                && incoming().buyerId == request.auth.uid
+                && incoming().status in ['offered', 'completed']
+                && incoming().diff(existing()).affectedKeys().hasOnly(['buyerId', 'buyerName', 'requestedCardId', 'status', 'updatedAt'])
+              ) ||
+              (
+                existing().sellerId == request.auth.uid
+                && incoming().status in ['completed', 'rejected', 'cancelled']
+                && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+              )
+            )
+          )
+        );
+      allow delete: if isValidId(tradeId) && isAdmin();
+    }
+
+    // Achievements & Missions Catalogs
+    match /achievements/{achievementId} {
+      allow get: if isValidId(achievementId);
+      allow list: if true;
+      allow create, update: if isValidId(achievementId) && isAdmin() && isValidAchievement(incoming()) && incoming().updatedAt == request.time;
+      allow delete: if isValidId(achievementId) && isAdmin();
+    }
+
+    match /missions/{missionId} {
+      allow get: if isValidId(missionId);
+      allow list: if true;
+      allow create, update: if isValidId(missionId) && isAdmin() && isValidMission(incoming()) && incoming().updatedAt == request.time;
+      allow delete: if isValidId(missionId) && isAdmin();
+    }
+
+    // Leaderboard
+    match /leaderboard/{userId} {
+      allow get: if isValidId(userId);
+      allow list: if true;
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && isValidLeaderboardEntry(incoming())
+        && incoming().userId == request.auth.uid
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isSignedIn()
+        && isValidLeaderboardEntry(incoming())
+        && incoming().userId == existing().userId
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            isOwner(userId)
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'username', 'avatar', 'level', 'totalCards', 'battleWins',
+              'legendaryCount', 'mythicCount', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // Transactions Ledger
+    match /transactions/{transactionId} {
+      allow get: if isValidId(transactionId) && isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isValidId(transactionId)
+        && isVerifiedUser()
+        && isValidTransaction(incoming())
+        && incoming().userId == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update, delete: if isValidId(transactionId) && isAdmin();
+    }
+
+    // Announcements
+    match /announcements/{announcementId} {
+      allow get: if isValidId(announcementId);
+      allow list: if true;
+      allow create, update: if isValidId(announcementId) && isAdmin() && isValidAnnouncement(incoming()) && incoming().createdAt == request.time;
+      allow delete: if isValidId(announcementId) && isAdmin();
+    }
+
+    // Moderation Reports
+    match /reports/{reportId} {
+      allow get: if isValidId(reportId) && isSignedIn() && (resource.data.reporterId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.reporterId == request.auth.uid || isAdmin());
+      allow create: if isValidId(reportId)
+        && isVerifiedUser()
+        && isValidReport(incoming())
+        && incoming().reporterId == request.auth.uid
+        && incoming().status == 'open'
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(reportId) && isAdmin() && isValidReport(incoming());
+      allow delete: if isValidId(reportId) && isAdmin();
+    }
+  }
+}

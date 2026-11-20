@@ -1,0 +1,313 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public player profile without PII for ZharCard leaderboards and marketplace.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "username": { "type": "string", "minLength": 2, "maxLength": 32 },
+        "avatar": { "type": "string", "maxLength": 500 },
+        "bio": { "type": "string", "maxLength": 300 },
+        "level": { "type": "integer" },
+        "exp": { "type": "integer" },
+        "coins": { "type": "integer" },
+        "totalCards": { "type": "integer" },
+        "totalPacksOpened": { "type": "integer" },
+        "totalBattles": { "type": "integer" },
+        "battleWins": { "type": "integer" },
+        "winRate": { "type": "number" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "unlockedAchievements": { "type": "array" },
+        "completedMissionIds": { "type": "array" },
+        "favoriteCardIds": { "type": "array" },
+        "joinDate": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "username", "level", "exp", "coins", "role", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII and user settings accessible only to the owner or admin.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "maxLength": 200 },
+        "language": { "type": "string", "enum": ["id", "en"] },
+        "theme": { "type": "string", "enum": ["light", "dark"] },
+        "notificationsEnabled": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "Card": {
+      "title": "Card",
+      "description": "Official ZharWorld card or player-crafted custom card.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "nameEn": { "type": "string", "maxLength": 60 },
+        "description": { "type": "string", "minLength": 4, "maxLength": 400 },
+        "descriptionEn": { "type": "string", "maxLength": 400 },
+        "imageUrl": { "type": "string", "maxLength": 1000 },
+        "rarity": { "type": "string", "enum": ["COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY", "MYTHIC", "SECRET"] },
+        "element": { "type": "string", "enum": ["Fire", "Water", "Wind", "Earth", "Light", "Dark", "Ice", "Thunder"] },
+        "hp": { "type": "integer" },
+        "attack": { "type": "integer" },
+        "defense": { "type": "integer" },
+        "skillName": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "skillDescription": { "type": "string", "minLength": 4, "maxLength": 240 },
+        "template": { "type": "string", "maxLength": 40 },
+        "isOfficial": { "type": "boolean" },
+        "moderationStatus": { "type": "string", "enum": ["approved", "pending", "rejected"] },
+        "creatorId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "creatorName": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "description", "rarity", "element", "hp", "attack", "defense", "skillName", "skillDescription", "isOfficial", "moderationStatus", "creatorId", "createdAt", "updatedAt"]
+    },
+    "CardInventory": {
+      "title": "CardInventory",
+      "description": "Player card ownership and favorite flags.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cardId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "quantity": { "type": "integer" },
+        "isFavorite": { "type": "boolean" },
+        "obtainedFrom": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "cardId", "quantity", "isFavorite", "createdAt", "updatedAt"]
+    },
+    "Pack": {
+      "title": "Pack",
+      "description": "Virtual pack definitions and drop rates.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "price": { "type": "integer" },
+        "cardCount": { "type": "integer" },
+        "guaranteedMinRarity": { "type": "string", "maxLength": 24 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "price", "cardCount", "updatedAt"]
+    },
+    "PackOpening": {
+      "title": "PackOpening",
+      "description": "Server-signed pack opening history record.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "packId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "cardIds": { "type": "array" },
+        "highestRarity": { "type": "string", "maxLength": 24 },
+        "cost": { "type": "integer" },
+        "serverSignature": { "type": "string", "minLength": 16, "maxLength": 256 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "packId", "cardIds", "highestRarity", "cost", "serverSignature", "createdAt"]
+    },
+    "Battle": {
+      "title": "Battle",
+      "description": "Turn-based card battle state with terminal outcome lock.",
+      "type": "object",
+      "properties": {
+        "playerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "mode": { "type": "string", "enum": ["practice", "casual", "ranked"] },
+        "status": { "type": "string", "enum": ["active", "finished"] },
+        "winner": { "type": "string", "enum": ["none", "player", "opponent"] },
+        "playerCardId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "enemyCardId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "playerHp": { "type": "integer" },
+        "enemyHp": { "type": "integer" },
+        "turnCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["playerId", "mode", "status", "winner", "playerCardId", "enemyCardId", "playerHp", "enemyHp", "turnCount", "createdAt", "updatedAt"]
+    },
+    "BattleHistory": {
+      "title": "BattleHistory",
+      "description": "Immutable completed battle log entry.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "mode": { "type": "string", "enum": ["practice", "casual", "ranked"] },
+        "result": { "type": "string", "enum": ["victory", "defeat"] },
+        "playerCardId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "enemyCardId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "rewardCoins": { "type": "integer" },
+        "rewardExp": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "mode", "result", "playerCardId", "enemyCardId", "rewardCoins", "rewardExp", "createdAt"]
+    },
+    "Trade": {
+      "title": "Trade",
+      "description": "Atomic marketplace listing and player-to-player trade offer.",
+      "type": "object",
+      "properties": {
+        "sellerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sellerName": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "buyerId": { "type": "string", "maxLength": 128 },
+        "offeredCardId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "requestedCardId": { "type": "string", "maxLength": 128 },
+        "priceCoins": { "type": "integer" },
+        "status": { "type": "string", "enum": ["open", "offered", "completed", "cancelled", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sellerId", "sellerName", "offeredCardId", "priceCoins", "status", "createdAt", "updatedAt"]
+    },
+    "Achievement": {
+      "title": "Achievement",
+      "description": "Global achievement catalog definitions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "rewardCoins": { "type": "integer" },
+        "rewardExp": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "rewardCoins", "rewardExp", "updatedAt"]
+    },
+    "Mission": {
+      "title": "Mission",
+      "description": "Daily mission catalog definitions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "targetCount": { "type": "integer" },
+        "rewardCoins": { "type": "integer" },
+        "rewardExp": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "targetCount", "rewardCoins", "rewardExp", "updatedAt"]
+    },
+    "LeaderboardEntry": {
+      "title": "LeaderboardEntry",
+      "description": "Synced player ranking snapshot.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "username": { "type": "string", "minLength": 2, "maxLength": 32 },
+        "avatar": { "type": "string", "maxLength": 500 },
+        "level": { "type": "integer" },
+        "totalCards": { "type": "integer" },
+        "battleWins": { "type": "integer" },
+        "legendaryCount": { "type": "integer" },
+        "mythicCount": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "username", "level", "totalCards", "battleWins", "updatedAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Virtual currency transaction audit entry.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "type": { "type": "string", "enum": ["pack_open", "battle_reward", "mission_reward", "trade_buy", "trade_sell", "starter_bonus"] },
+        "amount": { "type": "integer" },
+        "referenceId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "amount", "referenceId", "createdAt"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Admin announcements for ZharWorld players.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "body": { "type": "string", "minLength": 4, "maxLength": 500 },
+        "authorId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "body", "authorId", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Player reports for custom card moderation.",
+      "type": "object",
+      "properties": {
+        "reporterId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "targetCardId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "reason": { "type": "string", "minLength": 4, "maxLength": 300 },
+        "status": { "type": "string", "enum": ["open", "resolved"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reporterId", "targetCardId", "reason", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Public player profile (no PII)"
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Owner-only PII and personal settings"
+    },
+    "/cards/{cardId}": {
+      "schema": { "$ref": "#/entities/Card" },
+      "description": "Official and custom cards"
+    },
+    "/card_inventory/{inventoryId}": {
+      "schema": { "$ref": "#/entities/CardInventory" },
+      "description": "Player owned card counts and favorites"
+    },
+    "/packs/{packId}": {
+      "schema": { "$ref": "#/entities/Pack" },
+      "description": "Pack configurations and drop rates"
+    },
+    "/pack_openings/{openingId}": {
+      "schema": { "$ref": "#/entities/PackOpening" },
+      "description": "Pack opening receipts"
+    },
+    "/battles/{battleId}": {
+      "schema": { "$ref": "#/entities/Battle" },
+      "description": "Active and completed battle sessions"
+    },
+    "/battle_history/{historyId}": {
+      "schema": { "$ref": "#/entities/BattleHistory" },
+      "description": "Completed battle history records"
+    },
+    "/trades/{tradeId}": {
+      "schema": { "$ref": "#/entities/Trade" },
+      "description": "Marketplace listings and trade offers"
+    },
+    "/achievements/{achievementId}": {
+      "schema": { "$ref": "#/entities/Achievement" },
+      "description": "Achievement catalog"
+    },
+    "/missions/{missionId}": {
+      "schema": { "$ref": "#/entities/Mission" },
+      "description": "Daily mission catalog"
+    },
+    "/leaderboard/{userId}": {
+      "schema": { "$ref": "#/entities/LeaderboardEntry" },
+      "description": "Leaderboard player summaries"
+    },
+    "/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "Player coin ledger"
+    },
+    "/announcements/{announcementId}": {
+      "schema": { "$ref": "#/entities/Announcement" },
+      "description": "Global announcements"
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/Report" },
+      "description": "Moderation reports"
+    }
+  }
+}
